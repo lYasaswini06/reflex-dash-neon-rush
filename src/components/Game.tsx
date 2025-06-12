@@ -58,7 +58,7 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
     };
   }, [timeLeft, gameStarted, gameEnded]);
 
-  // Update difficulty based on time
+  // Update difficulty based on time remaining (more aggressive progression)
   useEffect(() => {
     if (timeLeft > 20) {
       setDifficulty('Easy');
@@ -69,16 +69,16 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
     }
   }, [timeLeft]);
 
-  // Generate new target
+  // Generate new target with much faster spawn rates
   const generateTarget = () => {
     if (!gameAreaRef.current || gameEnded) return;
 
     const rect = gameAreaRef.current.getBoundingClientRect();
     let size = 80;
     
-    // Adjust size based on difficulty
-    if (difficulty === 'Medium') size = 60;
-    else if (difficulty === 'Hard') size = 40;
+    // More aggressive size reduction
+    if (difficulty === 'Medium') size = 55;
+    else if (difficulty === 'Hard') size = 35;
 
     const margin = size / 2;
     const x = Math.random() * (rect.width - size) + margin;
@@ -93,8 +93,12 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
 
     setTargets([newTarget]);
 
-    // Auto-remove target after some time based on difficulty
-    const timeout = difficulty === 'Hard' ? 1500 : difficulty === 'Medium' ? 2000 : 2500;
+    // Much faster target spawning - more aggressive timing
+    let timeout;
+    if (difficulty === 'Hard') timeout = 800;      // Very fast
+    else if (difficulty === 'Medium') timeout = 1200; // Fast
+    else timeout = 1600;  // Still faster than before
+
     targetTimeoutRef.current = setTimeout(() => {
       setTargets([]);
       generateTarget();
@@ -138,7 +142,7 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
     setTimeout(() => setHitMessage(''), 1000);
 
     // Generate new target immediately
-    setTimeout(() => generateTarget(), 100);
+    setTimeout(() => generateTarget(), 50); // Reduced delay for faster gameplay
   };
 
   const endGame = () => {
@@ -149,19 +153,21 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
       clearTimeout(targetTimeoutRef.current);
     }
 
-    // Save score to localStorage
-    const newScores = [...previousScores, score];
-    localStorage.setItem(`scores_${user.uid}`, JSON.stringify(newScores));
-    setPreviousScores(newScores);
+    // Only save score if it's greater than 0
+    if (score > 0) {
+      const newScores = [...previousScores, score];
+      localStorage.setItem(`scores_${user.uid}`, JSON.stringify(newScores));
+      setPreviousScores(newScores);
 
-    // Update best score
-    const currentBest = parseInt(localStorage.getItem(`bestScore_${user.uid}`) || '0');
-    if (score > currentBest) {
-      localStorage.setItem(`bestScore_${user.uid}`, score.toString());
-      toast({
-        title: "New Personal Best!",
-        description: `Amazing! You scored ${score} points!`,
-      });
+      // Update best score
+      const currentBest = parseInt(localStorage.getItem(`bestScore_${user.uid}`) || '0');
+      if (score > currentBest) {
+        localStorage.setItem(`bestScore_${user.uid}`, score.toString());
+        toast({
+          title: "New Personal Best!",
+          description: `Amazing! You scored ${score} points!`,
+        });
+      }
     }
   };
 
@@ -271,13 +277,13 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
                     Your Final Score: {score}
                   </div>
                   
-                  {previousScores.length > 1 && (
+                  {previousScores.length > 0 && score > 0 && (
                     <div className="mt-4">
                       <h3 className="text-lg font-semibold mb-2">Your Previous Scores:</h3>
                       <div className="text-sm space-y-1 max-h-32 overflow-y-auto">
-                        {previousScores.slice(-5).map((prevScore, index) => (
+                        {previousScores.slice(-5).reverse().map((prevScore, index) => (
                           <div key={index} className="text-white/70">
-                            Try {previousScores.length - 5 + index + 1}: {prevScore} pts
+                            Try {previousScores.length - index}: {prevScore} pts
                           </div>
                         ))}
                       </div>
