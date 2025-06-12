@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -277,13 +276,13 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
                     Your Final Score: {score}
                   </div>
                   
-                  {previousScores.length > 0 && score > 0 && (
+                  {previousScores.length > 1 && (
                     <div className="mt-4">
                       <h3 className="text-lg font-semibold mb-2">Your Previous Scores:</h3>
                       <div className="text-sm space-y-1 max-h-32 overflow-y-auto">
-                        {previousScores.slice(-5).reverse().map((prevScore, index) => (
+                        {previousScores.slice(0, -1).reverse().map((prevScore, index) => (
                           <div key={index} className="text-white/70">
-                            Try {previousScores.length - index}: {prevScore} pts
+                            Try {previousScores.length - 1 - index}: {prevScore} pts
                           </div>
                         ))}
                       </div>
