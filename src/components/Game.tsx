@@ -1,198 +1,167 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { ArrowLeft } from 'lucide-react';
-import { doc, setDoc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+
+interface Target {
+  id: string;
+  x: number;
+  y: number;
+  size: number;
+}
 
 interface GameProps {
   user: any;
-  db: any;
   onBack: () => void;
   soundEnabled: boolean;
 }
 
-const Game = ({ user, db, onBack, soundEnabled }: GameProps) => {
+const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(30);
   const [gameStarted, setGameStarted] = useState(false);
   const [gameEnded, setGameEnded] = useState(false);
-  const [target, setTarget] = useState({ x: 50, y: 50, id: 0 });
+  const [targets, setTargets] = useState<Target[]>([]);
   const [streak, setStreak] = useState(0);
-  const [hitMessages, setHitMessages] = useState<Array<{id: number, message: string, x: number, y: number}>>([]);
+  const [hitMessage, setHitMessage] = useState('');
   const [difficulty, setDifficulty] = useState('Easy');
-  const [targetSize, setTargetSize] = useState(80);
-  const [spawnDelay, setSpawnDelay] = useState(1000);
   const [previousScores, setPreviousScores] = useState<number[]>([]);
-  const [bestScore, setBestScore] = useState(0);
   const gameAreaRef = useRef<HTMLDivElement>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const targetTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
+  // Load previous scores from localStorage
   useEffect(() => {
-    loadUserData();
-  }, []);
+    const savedScores = localStorage.getItem(`scores_${user.uid}`);
+    if (savedScores) {
+      setPreviousScores(JSON.parse(savedScores));
+    }
+  }, [user.uid]);
 
+  // Game timer
   useEffect(() => {
-    if (gameStarted && timeLeft > 0) {
-      const timer = setTimeout(() => {
-        setTimeLeft(timeLeft - 1);
-        updateDifficulty(timeLeft - 1);
+    if (gameStarted && !gameEnded && timeLeft > 0) {
+      intervalRef.current = setTimeout(() => {
+        setTimeLeft(prev => prev - 1);
       }, 1000);
-      return () => clearTimeout(timer);
     } else if (timeLeft === 0 && gameStarted) {
       endGame();
     }
-  }, [timeLeft, gameStarted]);
 
-  useEffect(() => {
-    if (gameStarted && !gameEnded) {
-      spawnTarget();
-    }
-  }, [gameStarted, gameEnded]);
-
-  const loadUserData = async () => {
-    try {
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        setBestScore(userData.bestScore || 0);
-        setPreviousScores(userData.previousScores || []);
+    return () => {
+      if (intervalRef.current) {
+        clearTimeout(intervalRef.current);
       }
-    } catch (error) {
-      console.error('Error loading user data:', error);
-    }
-  };
+    };
+  }, [timeLeft, gameStarted, gameEnded]);
 
-  const updateDifficulty = (time: number) => {
-    if (time > 20) {
+  // Update difficulty based on time
+  useEffect(() => {
+    if (timeLeft > 20) {
       setDifficulty('Easy');
-      setTargetSize(80);
-      setSpawnDelay(1000);
-    } else if (time > 10) {
+    } else if (timeLeft > 10) {
       setDifficulty('Medium');
-      setTargetSize(60);
-      setSpawnDelay(800);
     } else {
       setDifficulty('Hard');
-      setTargetSize(40);
-      setSpawnDelay(600);
     }
-  };
+  }, [timeLeft]);
 
-  const spawnTarget = () => {
-    if (!gameAreaRef.current) return;
+  // Generate new target
+  const generateTarget = () => {
+    if (!gameAreaRef.current || gameEnded) return;
+
+    const rect = gameAreaRef.current.getBoundingClientRect();
+    let size = 80;
     
-    const area = gameAreaRef.current.getBoundingClientRect();
-    const margin = targetSize;
-    
-    const newTarget = {
-      x: Math.random() * (area.width - margin * 2) + margin,
-      y: Math.random() * (area.height - margin * 2) + margin,
-      id: Date.now()
+    // Adjust size based on difficulty
+    if (difficulty === 'Medium') size = 60;
+    else if (difficulty === 'Hard') size = 40;
+
+    const margin = size / 2;
+    const x = Math.random() * (rect.width - size) + margin;
+    const y = Math.random() * (rect.height - size) + margin;
+
+    const newTarget: Target = {
+      id: Date.now().toString(),
+      x,
+      y,
+      size
     };
-    
-    setTarget(newTarget);
-  };
 
-  const hitTarget = (e: React.MouseEvent) => {
-    e.preventDefault();
-    
-    if (soundEnabled) {
-      // Play hit sound (you can add actual audio files)
-      const audio = new Audio('/hit-sound.mp3');
-      audio.play().catch(() => {}); // Ignore errors if sound file doesn't exist
-    }
+    setTargets([newTarget]);
 
-    const newScore = score + 10;
-    const newStreak = streak + 1;
-    
-    // Bonus for streaks
-    let bonus = 0;
-    if (newStreak % 3 === 0) {
-      bonus = 10;
-    }
-    
-    setScore(newScore + bonus);
-    setStreak(newStreak);
-    
-    // Show hit message
-    const messages = ['Nice Hit!', 'Great!', 'Awesome!', 'Perfect!'];
-    let message = messages[Math.floor(Math.random() * messages.length)];
-    
-    if (newStreak >= 3 && newStreak % 3 === 0) {
-      message = 'Reflex Streak!';
-    }
-    if (newStreak >= 10) {
-      message = 'Crazy Fast!';
-    }
-    
-    const hitMessage = {
-      id: Date.now(),
-      message: bonus > 0 ? `${message} +${10 + bonus}!` : `${message} +10!`,
-      x: e.clientX,
-      y: e.clientY
-    };
-    
-    setHitMessages(prev => [...prev, hitMessage]);
-    
-    // Remove message after animation
-    setTimeout(() => {
-      setHitMessages(prev => prev.filter(m => m.id !== hitMessage.id));
-    }, 1000);
-    
-    // Spawn new target immediately
-    setTimeout(spawnTarget, 100);
+    // Auto-remove target after some time based on difficulty
+    const timeout = difficulty === 'Hard' ? 1500 : difficulty === 'Medium' ? 2000 : 2500;
+    targetTimeoutRef.current = setTimeout(() => {
+      setTargets([]);
+      generateTarget();
+    }, timeout);
   };
 
   const startGame = () => {
     setGameStarted(true);
     setScore(0);
-    setStreak(0);
     setTimeLeft(30);
     setGameEnded(false);
-    spawnTarget();
+    setStreak(0);
+    setHitMessage('');
+    generateTarget();
   };
 
-  const endGame = async () => {
-    setGameEnded(true);
-    
-    try {
-      const userDocRef = doc(db, 'users', user.uid);
-      const userDoc = await getDoc(userDocRef);
-      
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        const newBestScore = Math.max(score, userData.bestScore || 0);
-        const newPreviousScores = [...(userData.previousScores || []), score].slice(-5); // Keep last 5 scores
-        
-        await updateDoc(userDocRef, {
-          bestScore: newBestScore,
-          previousScores: newPreviousScores,
-          totalGames: (userData.totalGames || 0) + 1,
-          lastPlayed: new Date()
-        });
-        
-        setBestScore(newBestScore);
-        setPreviousScores(newPreviousScores);
-        
-        if (score > (userData.bestScore || 0)) {
-          toast({
-            title: "🎉 New Personal Best!",
-            description: `You scored ${score} points!`,
-          });
-        }
-        
-        // Add to global leaderboard
-        await setDoc(doc(db, 'leaderboard', user.uid), {
-          nickname: user.displayName,
-          score: newBestScore,
-          lastUpdated: new Date()
-        }, { merge: true });
-        
+  const hitTarget = (targetId: string) => {
+    if (gameEnded) return;
+
+    setTargets(prev => prev.filter(t => t.id !== targetId));
+    setScore(prev => prev + 10);
+    setStreak(prev => prev + 1);
+
+    // Clear existing timeout
+    if (targetTimeoutRef.current) {
+      clearTimeout(targetTimeoutRef.current);
+    }
+
+    // Show hit message
+    const messages = ['Nice Hit!', 'Great Shot!', 'Awesome!', 'Perfect!'];
+    if (streak >= 2) {
+      setHitMessage(streak >= 5 ? 'Crazy Fast!' : 'Reflex Streak!');
+      if (streak === 2) {
+        setScore(prev => prev + 10); // Bonus points
       }
-    } catch (error) {
-      console.error('Error saving score:', error);
+    } else {
+      setHitMessage(messages[Math.floor(Math.random() * messages.length)]);
+    }
+
+    // Clear message after 1 second
+    setTimeout(() => setHitMessage(''), 1000);
+
+    // Generate new target immediately
+    setTimeout(() => generateTarget(), 100);
+  };
+
+  const endGame = () => {
+    setGameEnded(true);
+    setTargets([]);
+    
+    if (targetTimeoutRef.current) {
+      clearTimeout(targetTimeoutRef.current);
+    }
+
+    // Save score to localStorage
+    const newScores = [...previousScores, score];
+    localStorage.setItem(`scores_${user.uid}`, JSON.stringify(newScores));
+    setPreviousScores(newScores);
+
+    // Update best score
+    const currentBest = parseInt(localStorage.getItem(`bestScore_${user.uid}`) || '0');
+    if (score > currentBest) {
+      localStorage.setItem(`bestScore_${user.uid}`, score.toString());
+      toast({
+        title: "New Personal Best!",
+        description: `Amazing! You scored ${score} points!`,
+      });
     }
   };
 
@@ -200,92 +169,90 @@ const Game = ({ user, db, onBack, soundEnabled }: GameProps) => {
     setGameStarted(false);
     setGameEnded(false);
     setScore(0);
-    setStreak(0);
     setTimeLeft(30);
-    setDifficulty('Easy');
-    setTargetSize(80);
-    setSpawnDelay(1000);
+    setTargets([]);
+    setStreak(0);
+    setHitMessage('');
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-600 via-pink-600 to-blue-600 animate-gradient-x relative overflow-hidden">
       {/* Header */}
-      <div className="absolute top-4 left-4 right-4 flex justify-between items-center z-10">
+      <div className="absolute top-4 left-4 z-10">
         <Button
           onClick={onBack}
-          className="bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800"
+          className="bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
-          Back
+          Back to Menu
         </Button>
-        
-        <div className="flex gap-4 text-white font-bold">
-          <div className={`text-2xl ${timeLeft <= 10 ? 'animate-pulse text-red-400' : ''}`}>
-            ⏱️ {timeLeft}s
-          </div>
-          <div className="text-lg">
-            📊 {difficulty}
-          </div>
-        </div>
-        
-        <div className="text-white font-bold text-2xl animate-pulse">
-          🎯 {score}
-        </div>
       </div>
 
-      {/* Game Area */}
-      <div 
-        ref={gameAreaRef}
-        className="absolute inset-0 mt-20 mb-4 mx-4 rounded-lg bg-black/10 backdrop-blur-sm cursor-crosshair"
-        style={{ 
-          background: 'radial-gradient(circle at 50% 50%, rgba(255,255,255,0.1) 0%, transparent 50%)'
-        }}
-      >
-        {/* Target */}
-        {gameStarted && !gameEnded && (
-          <div
-            className="absolute animate-pulse cursor-pointer transition-all duration-200 hover:scale-110"
-            style={{
-              left: target.x - targetSize/2,
-              top: target.y - targetSize/2,
-              width: targetSize,
-              height: targetSize,
-              background: 'radial-gradient(circle, #ff6b6b, #ee5a24)',
-              borderRadius: '50%',
-              boxShadow: '0 0 20px rgba(255, 107, 107, 0.8), inset 0 0 20px rgba(255, 255, 255, 0.3)',
-              border: '3px solid rgba(255, 255, 255, 0.6)'
-            }}
-            onClick={hitTarget}
-          />
-        )}
-
-        {/* Hit Messages */}
-        {hitMessages.map((msg) => (
-          <div
-            key={msg.id}
-            className="absolute pointer-events-none text-white font-bold text-2xl animate-bounce z-20"
-            style={{
-              left: msg.x - 50,
-              top: msg.y - 50,
-              textShadow: '2px 2px 4px rgba(0,0,0,0.8)'
-            }}
-          >
-            {msg.message}
+      {/* Game Stats */}
+      <div className="absolute top-4 right-4 z-10 text-white text-right">
+        <div className={`text-2xl font-bold mb-2 ${timeLeft <= 10 ? 'animate-pulse text-red-400' : ''}`}>
+          Time: {timeLeft}s
+        </div>
+        <div className="text-xl font-semibold mb-1">
+          Score: <span className="text-yellow-300">{score}</span>
+        </div>
+        <div className="text-sm opacity-80">
+          Difficulty: {difficulty}
+        </div>
+        {streak > 0 && (
+          <div className="text-sm text-orange-300">
+            Streak: {streak}
           </div>
+        )}
+      </div>
+
+      {/* Hit Message */}
+      {hitMessage && (
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none">
+          <div className="text-4xl font-bold text-white animate-bounce">
+            {hitMessage}
+          </div>
+        </div>
+      )}
+
+      {/* Game Area */}
+      <div
+        ref={gameAreaRef}
+        className="absolute inset-0 cursor-crosshair"
+        style={{ top: '80px', bottom: '20px', left: '20px', right: '20px' }}
+      >
+        {/* Targets */}
+        {targets.map(target => (
+          <div
+            key={target.id}
+            className="absolute bg-gradient-to-br from-red-400 to-pink-500 rounded-full cursor-pointer animate-pulse shadow-lg transform hover:scale-110 transition-transform"
+            style={{
+              left: target.x - target.size / 2,
+              top: target.y - target.size / 2,
+              width: target.size,
+              height: target.size,
+              boxShadow: '0 0 20px rgba(255, 0, 100, 0.8)'
+            }}
+            onClick={() => hitTarget(target.id)}
+          />
         ))}
 
         {/* Game States */}
         {!gameStarted && !gameEnded && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Card className="bg-white/10 backdrop-blur-lg border-white/20">
-              <CardContent className="p-8 text-center">
-                <h2 className="text-3xl font-bold text-white mb-4">Ready to Test Your Reflexes?</h2>
-                <p className="text-white/80 mb-6">Hit as many targets as possible in 30 seconds!</p>
+          <div className="flex items-center justify-center h-full">
+            <Card className="bg-white/10 backdrop-blur-lg border-white/20 text-center">
+              <CardHeader>
+                <CardTitle className="text-white text-3xl">🎯 Ready to Play?</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-white/80 mb-4">
+                  Hit as many targets as you can in 30 seconds!
+                </p>
                 <Button
                   onClick={startGame}
-                  className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-bold text-xl px-8 py-4"
+                  className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-bold text-lg px-8 py-3"
                 >
-                  🚀 Start Game!
+                  🚀 Start Game
                 </Button>
               </CardContent>
             </Card>
@@ -293,42 +260,43 @@ const Game = ({ user, db, onBack, soundEnabled }: GameProps) => {
         )}
 
         {gameEnded && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Card className="bg-white/10 backdrop-blur-lg border-white/20 max-w-md">
-              <CardContent className="p-8 text-center">
-                <h2 className="text-3xl font-bold text-white mb-4">Game Over!</h2>
-                <p className="text-2xl text-yellow-300 mb-4">Your Final Score: {score}</p>
-                
-                {score === bestScore && score > 0 && (
-                  <p className="text-green-400 font-bold mb-4">🎉 New Personal Best!</p>
-                )}
-                
-                <div className="text-white/80 mb-6">
-                  <p className="mb-2">Best Score: {bestScore}</p>
-                  {previousScores.length > 0 && (
-                    <div>
-                      <p className="mb-2">Your Previous Scores:</p>
-                      {previousScores.map((prevScore, index) => (
-                        <p key={index} className="text-sm">
-                          Try {index + 1}: {prevScore} pts
-                        </p>
-                      ))}
+          <div className="flex items-center justify-center h-full">
+            <Card className="bg-white/10 backdrop-blur-lg border-white/20 text-center max-w-md">
+              <CardHeader>
+                <CardTitle className="text-white text-3xl">🎉 Game Over!</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="text-white">
+                  <div className="text-2xl font-bold text-yellow-300 mb-2">
+                    Your Final Score: {score}
+                  </div>
+                  
+                  {previousScores.length > 1 && (
+                    <div className="mt-4">
+                      <h3 className="text-lg font-semibold mb-2">Your Previous Scores:</h3>
+                      <div className="text-sm space-y-1 max-h-32 overflow-y-auto">
+                        {previousScores.slice(-5).map((prevScore, index) => (
+                          <div key={index} className="text-white/70">
+                            Try {previousScores.length - 5 + index + 1}: {prevScore} pts
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
                 
-                <div className="flex gap-4">
+                <div className="flex gap-2">
                   <Button
                     onClick={resetGame}
-                    className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600"
+                    className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-bold"
                   >
                     🔄 Play Again
                   </Button>
                   <Button
                     onClick={onBack}
-                    className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                    className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold"
                   >
-                    🏠 Main Menu
+                    📊 View Leaderboard
                   </Button>
                 </div>
               </CardContent>

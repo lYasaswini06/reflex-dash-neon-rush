@@ -1,104 +1,101 @@
 
 import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { ArrowLeft, Trophy, Medal, Award } from 'lucide-react';
-import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
+
+interface LeaderboardEntry {
+  uid: string;
+  nickname: string;
+  score: number;
+  rank: number;
+}
 
 interface LeaderboardProps {
   user: any;
-  db: any;
   onBack: () => void;
 }
 
-interface LeaderboardEntry {
-  id: string;
-  nickname: string;
-  score: number;
-  lastUpdated: any;
-}
-
-const Leaderboard = ({ user, db, onBack }: LeaderboardProps) => {
+const Leaderboard: React.FC<LeaderboardProps> = ({ user, onBack }) => {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-  const [loading, setLoading] = useState(true);
   const [userRank, setUserRank] = useState<number | null>(null);
-  const [userScore, setUserScore] = useState(0);
+  const [userBestScore, setUserBestScore] = useState(0);
 
   useEffect(() => {
-    fetchLeaderboard();
-  }, []);
+    loadLeaderboard();
+  }, [user]);
 
-  const fetchLeaderboard = async () => {
-    try {
-      const q = query(
-        collection(db, 'leaderboard'),
-        orderBy('score', 'desc'),
-        limit(50)
-      );
-      
-      const querySnapshot = await getDocs(q);
-      const data: LeaderboardEntry[] = [];
-      
-      querySnapshot.forEach((doc) => {
-        data.push({
-          id: doc.id,
-          ...doc.data()
-        } as LeaderboardEntry);
+  const loadLeaderboard = () => {
+    // Get all scores from localStorage
+    const allScores: LeaderboardEntry[] = [];
+    
+    // Get current user's best score
+    const userBest = parseInt(localStorage.getItem(`bestScore_${user.uid}`) || '0');
+    setUserBestScore(userBest);
+    
+    if (userBest > 0) {
+      allScores.push({
+        uid: user.uid,
+        nickname: user.nickname || user.displayName,
+        score: userBest,
+        rank: 0
       });
-      
-      setLeaderboard(data);
-      
-      // Find user's rank and score
-      const userIndex = data.findIndex(entry => entry.id === user.uid);
-      if (userIndex !== -1) {
-        setUserRank(userIndex + 1);
-        setUserScore(data[userIndex].score);
-      }
-      
-      setLoading(false);
-    } catch (error) {
-      console.error('Error fetching leaderboard:', error);
-      setLoading(false);
+    }
+
+    // Add some sample scores for demonstration
+    const sampleScores = [
+      { uid: 'sample1', nickname: 'FlashMaster', score: 280, rank: 0 },
+      { uid: 'sample2', nickname: 'QuickDraw', score: 250, rank: 0 },
+      { uid: 'sample3', nickname: 'TargetHunter', score: 220, rank: 0 },
+      { uid: 'sample4', nickname: 'SpeedDemon', score: 200, rank: 0 },
+      { uid: 'sample5', nickname: 'ReflexKing', score: 180, rank: 0 }
+    ];
+
+    // Combine and sort
+    const combinedScores = [...allScores, ...sampleScores]
+      .filter((entry, index, self) => 
+        index === self.findIndex(e => e.uid === entry.uid)
+      )
+      .sort((a, b) => b.score - a.score);
+
+    // Assign ranks
+    const rankedScores = combinedScores.map((entry, index) => ({
+      ...entry,
+      rank: index + 1
+    }));
+
+    setLeaderboard(rankedScores);
+
+    // Find user's rank
+    const currentUserEntry = rankedScores.find(entry => entry.uid === user.uid);
+    if (currentUserEntry) {
+      setUserRank(currentUserEntry.rank);
     }
   };
 
   const getRankIcon = (rank: number) => {
-    switch (rank) {
-      case 1: return <Trophy className="w-6 h-6 text-yellow-400" />;
-      case 2: return <Medal className="w-6 h-6 text-gray-400" />;
-      case 3: return <Award className="w-6 h-6 text-amber-600" />;
-      default: return <span className="w-6 h-6 flex items-center justify-center text-white font-bold">#{rank}</span>;
-    }
+    if (rank === 1) return <Trophy className="w-6 h-6 text-yellow-400" />;
+    if (rank === 2) return <Medal className="w-6 h-6 text-gray-300" />;
+    if (rank === 3) return <Award className="w-6 h-6 text-amber-600" />;
+    return <span className="w-6 h-6 flex items-center justify-center text-white font-bold">{rank}</span>;
   };
 
-  const getStatusMessage = () => {
+  const getEncouragementMessage = () => {
     if (userRank === 1) {
       return "🥇 You're the Reflex Champion!";
     }
-    
     if (userRank && userRank <= 3) {
-      return `🏆 Amazing! You're in the top 3!`;
+      return "🏆 Amazing reflexes! You're in the top 3!";
     }
-    
     if (userRank && leaderboard.length > 0) {
-      const topScore = leaderboard[0].score;
-      const scoreDiff = topScore - userScore;
-      
-      if (scoreDiff <= 50) {
+      const topScore = leaderboard[0]?.score || 0;
+      const difference = topScore - userBestScore;
+      if (difference <= 50) {
         return "You're catching up! 👀";
       }
     }
-    
     return "Keep practicing to climb the leaderboard! 💪";
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-600 via-pink-600 to-blue-600 animate-gradient-x flex items-center justify-center">
-        <div className="text-white text-2xl font-bold animate-pulse">Loading Leaderboard...</div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-600 via-pink-600 to-blue-600 animate-gradient-x relative overflow-hidden">
@@ -114,90 +111,83 @@ const Leaderboard = ({ user, db, onBack }: LeaderboardProps) => {
       <div className="absolute top-4 left-4 z-10">
         <Button
           onClick={onBack}
-          className="bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800"
+          className="bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
-          Back
+          Back to Menu
         </Button>
       </div>
 
-      <div className="container mx-auto px-4 pt-20 pb-8">
-        <Card className="bg-white/10 backdrop-blur-lg border-white/20 max-w-4xl mx-auto">
+      {/* Main Content */}
+      <div className="flex items-center justify-center min-h-screen px-4">
+        <Card className="w-full max-w-2xl bg-white/10 backdrop-blur-lg border-white/20">
           <CardHeader className="text-center">
-            <CardTitle className="text-4xl font-bold text-white mb-4">
-              🏆 Global Leaderboard
+            <CardTitle className="text-4xl font-bold text-white mb-2">
+              🏆 Leaderboard
             </CardTitle>
-            {userRank && (
-              <div className="text-lg text-yellow-300 font-semibold">
-                {getStatusMessage()}
+            <p className="text-white/80">Top Reflex Masters</p>
+            
+            {userBestScore > 0 && (
+              <div className="mt-4 p-3 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-lg">
+                <p className="text-white font-semibold">
+                  {getEncouragementMessage()}
+                </p>
+                <p className="text-white/70 text-sm">
+                  Your best score: {userBestScore} points
+                  {userRank && ` (Rank #${userRank})`}
+                </p>
               </div>
             )}
           </CardHeader>
+          
           <CardContent>
             {leaderboard.length === 0 ? (
-              <div className="text-center text-white/80 py-8">
-                <p className="text-xl mb-4">No scores yet!</p>
-                <p>Be the first to set a record!</p>
+              <div className="text-center text-white/70 py-8">
+                <p className="text-lg mb-4">No scores yet!</p>
+                <p>Be the first to set a score and claim the top spot! 🚀</p>
               </div>
             ) : (
-              <div className="space-y-2">
-                {leaderboard.map((entry, index) => {
-                  const rank = index + 1;
-                  const isCurrentUser = entry.id === user.uid;
-                  
-                  return (
-                    <div
-                      key={entry.id}
-                      className={`flex items-center justify-between p-4 rounded-lg transition-all duration-300 ${
-                        isCurrentUser 
-                          ? 'bg-gradient-to-r from-yellow-500/30 to-orange-500/30 border-2 border-yellow-400 animate-pulse' 
-                          : 'bg-white/10 hover:bg-white/20'
-                      } ${
-                        rank <= 3 ? 'shadow-lg' : ''
-                      }`}
-                      style={rank <= 3 ? {
-                        boxShadow: rank === 1 ? '0 0 20px rgba(255, 215, 0, 0.5)' : 
-                                  rank === 2 ? '0 0 20px rgba(192, 192, 192, 0.5)' :
-                                  '0 0 20px rgba(205, 127, 50, 0.5)'
-                      } : {}}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center justify-center w-12 h-12 rounded-full bg-black/20">
-                          {getRankIcon(rank)}
-                        </div>
-                        <div>
-                          <div className={`font-bold text-lg ${isCurrentUser ? 'text-yellow-300' : 'text-white'}`}>
-                            {entry.nickname}
-                            {isCurrentUser && ' (You)'}
-                          </div>
-                          <div className="text-white/60 text-sm">
-                            {entry.lastUpdated?.toDate?.()?.toLocaleDateString() || 'Recently'}
-                          </div>
-                        </div>
-                      </div>
-                      <div className={`text-2xl font-bold ${
-                        rank === 1 ? 'text-yellow-400' :
-                        rank === 2 ? 'text-gray-300' :
-                        rank === 3 ? 'text-amber-600' :
-                        isCurrentUser ? 'text-yellow-300' : 'text-white'
-                      }`}>
-                        {entry.score}
+              <div className="space-y-3">
+                {leaderboard.slice(0, 10).map((entry, index) => (
+                  <div
+                    key={entry.uid}
+                    className={`flex items-center justify-between p-4 rounded-lg transition-all duration-300 ${
+                      entry.uid === user.uid
+                        ? 'bg-gradient-to-r from-yellow-500/30 to-orange-500/30 border-2 border-yellow-400/50 animate-glow'
+                        : 'bg-white/5 hover:bg-white/10'
+                    }`}
+                  >
+                    <div className="flex items-center gap-4">
+                      {getRankIcon(entry.rank)}
+                      <div>
+                        <p className="text-white font-semibold">
+                          {entry.nickname}
+                          {entry.uid === user.uid && (
+                            <span className="ml-2 text-yellow-300 text-sm">(You)</span>
+                          )}
+                        </p>
                       </div>
                     </div>
-                  );
-                })}
+                    <div className="text-right">
+                      <p className="text-white font-bold text-lg">{entry.score}</p>
+                      <p className="text-white/60 text-sm">points</p>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
             
-            {userRank && userRank > 10 && (
-              <div className="mt-6 p-4 bg-blue-500/20 rounded-lg border border-blue-400/30">
-                <div className="text-center text-white">
-                  <p className="font-semibold">Your Current Ranking:</p>
-                  <div className="flex items-center justify-center gap-4 mt-2">
-                    <span className="text-xl">#{userRank}</span>
-                    <span className="text-2xl font-bold text-yellow-300">{userScore} pts</span>
-                  </div>
-                </div>
+            {userBestScore === 0 && (
+              <div className="mt-6 text-center">
+                <p className="text-white/70 mb-4">
+                  Play your first game to appear on the leaderboard!
+                </p>
+                <Button
+                  onClick={onBack}
+                  className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-bold"
+                >
+                  🚀 Start Playing
+                </Button>
               </div>
             )}
           </CardContent>
