@@ -29,11 +29,37 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
   const [difficulty, setDifficulty] = useState('Easy');
   const [highestScore, setHighestScore] = useState(0);
   const [newRecord, setNewRecord] = useState(false);
-  const [forceUpdate, setForceUpdate] = useState(0); // Force re-render
+  const [forceUpdate, setForceUpdate] = useState(0);
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const targetTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
+
+  // Sound effect function
+  const playHitSound = () => {
+    if (!soundEnabled) return;
+    
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      // Create a pleasant "pop" sound
+      oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+      oscillator.frequency.exponentialRampToValueAtTime(200, audioContext.currentTime + 0.1);
+      
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.1);
+    } catch (error) {
+      console.log('Sound not supported:', error);
+    }
+  };
 
   // Load highest score from localStorage
   useEffect(() => {
@@ -134,6 +160,9 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
     if (gameEnded) return;
 
     console.log('Target hit! Current score before update:', score);
+    
+    // Play hit sound
+    playHitSound();
     
     // Remove the hit target
     setTargets(prev => prev.filter(t => t.id !== targetId));
