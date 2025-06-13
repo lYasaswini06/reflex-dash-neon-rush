@@ -1,73 +1,93 @@
-# Welcome to your Lovable project
+🎯 Reflex Dash – A Fast-Paced Neon Reflex Game
+Reflex Dash is a lightning-fast, visually rich reflex game where players tap appearing targets as quickly as possible to earn points. Designed for pure fun and competitiveness, it tracks progress, compares scores globally, and gives a vibrant arcade feel with floating emojis, color pulses, and dynamic difficulty.
 
-## Project info
+🚀 Game Features
+🔓 Guest Login with Nickname
+Players enter a nickname to begin playing.
 
-**URL**: https://lovable.dev/projects/d9e0dc34-c5d1-478a-be91-98ce2345318e
+Session is saved and remembered for future visits.
 
-## How can I edit this code?
+Users can log out anytime using a vibrant logout button.
 
-There are several ways of editing your application.
+🎮 Gameplay Mechanics
+30-second timer displayed at the top-left, blinking red when time is low.
 
-**Use Lovable**
+A target appears instantly; once hit, the next appears without delay.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/d9e0dc34-c5d1-478a-be91-98ce2345318e) and start prompting.
+Each target hit earns 10 points.
 
-Changes made via Lovable will be committed automatically to this repo.
+Streak bonus: 3 consecutive hits award an additional 10 points.
 
-**Use your preferred IDE**
+Animated feedback like:
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+“Nice Hit!”
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+“Reflex Streak!”
 
-Follow these steps:
+“Crazy Fast!”
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+At the end of the timer, the final score is displayed along with previous attempts.
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+🧠 Level Difficulty
+Difficulty increases as the game progresses:
 
-# Step 3: Install the necessary dependencies.
-npm i
+0–10 seconds: Normal targets
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+11–20 seconds: Smaller and faster
 
-**Edit a file directly in GitHub**
+21–30 seconds: Fastest, smallest targets
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+📊 Leaderboard
+Global leaderboard showing:
 
-**Use GitHub Codespaces**
+Rank
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Nickname
 
-## What technologies are used for this project?
+Score
 
-This project is built with:
+Highlights the current player’s row.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+Special messages for leaderboard position:
 
-## How can I deploy this project?
+"You're the Reflex Champion!" for top player.
 
-Simply open [Lovable](https://lovable.dev/projects/d9e0dc34-c5d1-478a-be91-98ce2345318e) and click on Share -> Publish.
+"You're catching up!" for close contenders.
 
-## Can I connect a custom domain to my Lovable project?
+Animated leaderboard entries with glowing effects.
 
-Yes, you can!
+🎨 Visual & UI Design
+Neon animated gradient background with shifting colors like pink, purple, blue, orange.
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+Floating emojis (🎉 🚀 💥 💫) drift on screen.
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+Mouse cursor leaves a glowing trail.
+
+Score displayed at top-right with glow-on-change animation.
+
+Dark and Light mode toggle:
+
+Smooth animated switch
+
+Each mode has vibrant, distinct color themes.
+
+All buttons are designed with bright, engaging colors.
+
+Attractive "Start Game", "Replay", and "Menu" buttons.
+
+🔊 Sound & Feedback
+Background music toggle.
+
+Sound effects on:
+
+Target hits
+
+Streaks
+
+Achievements
+
+Encouragement messages:
+
+Combo streaks
+
+Personal best updates
