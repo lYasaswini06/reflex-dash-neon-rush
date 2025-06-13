@@ -29,6 +29,7 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
   const [difficulty, setDifficulty] = useState('Easy');
   const [highestScore, setHighestScore] = useState(0);
   const [newRecord, setNewRecord] = useState(false);
+  const [forceUpdate, setForceUpdate] = useState(0); // Force re-render
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const targetTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -116,6 +117,7 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
   };
 
   const startGame = () => {
+    console.log('Starting game, resetting score to 0');
     setGameStarted(true);
     setScore(0);
     setTimeLeft(30);
@@ -124,19 +126,23 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
     setHitMessage('');
     setNewRecord(false);
     setTargets([]);
+    setForceUpdate(0);
     generateTarget();
   };
 
   const hitTarget = (targetId: string) => {
     if (gameEnded) return;
 
+    console.log('Target hit! Current score before update:', score);
+    
     // Remove the hit target
     setTargets(prev => prev.filter(t => t.id !== targetId));
     
-    // Update score immediately
+    // Update score with immediate logging and force update
     setScore(prev => {
       const newScore = prev + 10;
-      console.log('Score updated to:', newScore);
+      console.log('Score updated from', prev, 'to', newScore);
+      setForceUpdate(f => f + 1); // Force component re-render
       return newScore;
     });
     
@@ -147,7 +153,11 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
     if (streak >= 2) {
       setHitMessage(streak >= 5 ? 'Crazy Fast!' : 'Reflex Streak!');
       if (streak === 2) {
-        setScore(prev => prev + 10); // Bonus points
+        setScore(prev => {
+          const bonusScore = prev + 10;
+          console.log('Bonus points! Score now:', bonusScore);
+          return bonusScore;
+        });
       }
     } else {
       setHitMessage(messages[Math.floor(Math.random() * messages.length)]);
@@ -155,9 +165,12 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
 
     // Clear message after 1 second
     setTimeout(() => setHitMessage(''), 1000);
+    
+    console.log('Hit target completed, current score should be:', score + 10);
   };
 
   const endGame = () => {
+    console.log('Game ended with final score:', score);
     setGameEnded(true);
     setTargets([]);
     
@@ -187,7 +200,13 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
     setStreak(0);
     setHitMessage('');
     setNewRecord(false);
+    setForceUpdate(0);
   };
+
+  // Debug log to track score changes
+  useEffect(() => {
+    console.log('Score state changed to:', score);
+  }, [score]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-600 via-pink-600 to-blue-600 animate-gradient-x relative overflow-hidden">
@@ -230,7 +249,7 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
           Time: {timeLeft}s
         </div>
         <div className="text-xl font-semibold mb-1">
-          Score: <span className="text-yellow-300">{score}</span>
+          Score: <span className="text-yellow-300 font-bold">{score}</span>
         </div>
         <div className="text-sm opacity-80">
           Difficulty: {difficulty}
@@ -280,7 +299,10 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
               height: target.size,
               boxShadow: '0 0 20px rgba(255, 0, 100, 0.8)'
             }}
-            onClick={() => hitTarget(target.id)}
+            onClick={() => {
+              console.log('Target clicked:', target.id);
+              hitTarget(target.id);
+            }}
           />
         ))}
 
