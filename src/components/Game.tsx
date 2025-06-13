@@ -68,37 +68,49 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
     }
   }, [timeLeft]);
 
-  // Generate new target with faster spawn rates
+  // Generate new targets with multiple spawning
   const generateTarget = () => {
     if (!gameAreaRef.current || gameEnded) return;
 
     const rect = gameAreaRef.current.getBoundingClientRect();
     let size = 80;
+    let maxTargets = 1;
     
-    if (difficulty === 'Medium') size = 55;
-    else if (difficulty === 'Hard') size = 35;
+    if (difficulty === 'Medium') {
+      size = 55;
+      maxTargets = 2;
+    } else if (difficulty === 'Hard') {
+      size = 35;
+      maxTargets = 3;
+    }
 
     const margin = size / 2;
-    const x = Math.random() * (rect.width - size) + margin;
-    const y = Math.random() * (rect.height - size) + margin;
+    const newTargets: Target[] = [];
 
-    const newTarget: Target = {
-      id: Date.now().toString(),
-      x,
-      y,
-      size
-    };
+    // Generate multiple targets based on difficulty
+    for (let i = 0; i < maxTargets; i++) {
+      const x = Math.random() * (rect.width - size) + margin;
+      const y = Math.random() * (rect.height - size) + margin;
 
-    setTargets([newTarget]);
+      const newTarget: Target = {
+        id: `${Date.now()}-${i}`,
+        x,
+        y,
+        size
+      };
 
-    // Faster target spawning based on difficulty
+      newTargets.push(newTarget);
+    }
+
+    setTargets(newTargets);
+
+    // Much faster target spawning
     let timeout;
-    if (difficulty === 'Hard') timeout = 600;      // Very fast
-    else if (difficulty === 'Medium') timeout = 900; // Fast
-    else timeout = 1200;  // Normal
+    if (difficulty === 'Hard') timeout = 400;      // Very fast
+    else if (difficulty === 'Medium') timeout = 600; // Fast
+    else timeout = 800;  // Normal but faster than before
 
     targetTimeoutRef.current = setTimeout(() => {
-      setTargets([]);
       generateTarget();
     }, timeout);
   };
@@ -111,20 +123,24 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
     setStreak(0);
     setHitMessage('');
     setNewRecord(false);
+    setTargets([]);
     generateTarget();
   };
 
   const hitTarget = (targetId: string) => {
     if (gameEnded) return;
 
+    // Remove the hit target
     setTargets(prev => prev.filter(t => t.id !== targetId));
-    setScore(prev => prev + 10);
+    
+    // Update score immediately
+    setScore(prev => {
+      const newScore = prev + 10;
+      console.log('Score updated to:', newScore);
+      return newScore;
+    });
+    
     setStreak(prev => prev + 1);
-
-    // Clear existing timeout
-    if (targetTimeoutRef.current) {
-      clearTimeout(targetTimeoutRef.current);
-    }
 
     // Show hit message
     const messages = ['Nice Hit!', 'Great Shot!', 'Awesome!', 'Perfect!'];
@@ -139,9 +155,6 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
 
     // Clear message after 1 second
     setTimeout(() => setHitMessage(''), 1000);
-
-    // Generate new target immediately
-    setTimeout(() => generateTarget(), 50);
   };
 
   const endGame = () => {
@@ -162,13 +175,6 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
         title: "🎉 NEW PERSONAL BEST! 🎉",
         description: `Incredible! You scored ${score} points!`,
       });
-    }
-
-    // Save to previous scores list
-    if (score > 0) {
-      const previousScores = JSON.parse(localStorage.getItem(`scores_${user.uid}`) || '[]');
-      const newScores = [...previousScores, score];
-      localStorage.setItem(`scores_${user.uid}`, JSON.stringify(newScores));
     }
   };
 
