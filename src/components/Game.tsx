@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Crown, Star, Trophy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface Target {
@@ -26,18 +27,17 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
   const [streak, setStreak] = useState(0);
   const [hitMessage, setHitMessage] = useState('');
   const [difficulty, setDifficulty] = useState('Easy');
-  const [previousScores, setPreviousScores] = useState<number[]>([]);
+  const [highestScore, setHighestScore] = useState(0);
+  const [newRecord, setNewRecord] = useState(false);
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const targetTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
-  // Load previous scores from localStorage
+  // Load highest score from localStorage
   useEffect(() => {
-    const savedScores = localStorage.getItem(`scores_${user.uid}`);
-    if (savedScores) {
-      setPreviousScores(JSON.parse(savedScores));
-    }
+    const savedHighest = parseInt(localStorage.getItem(`bestScore_${user.uid}`) || '0');
+    setHighestScore(savedHighest);
   }, [user.uid]);
 
   // Game timer
@@ -57,7 +57,7 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
     };
   }, [timeLeft, gameStarted, gameEnded]);
 
-  // Update difficulty based on time remaining (more aggressive progression)
+  // Update difficulty based on time remaining
   useEffect(() => {
     if (timeLeft > 20) {
       setDifficulty('Easy');
@@ -68,14 +68,13 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
     }
   }, [timeLeft]);
 
-  // Generate new target with much faster spawn rates
+  // Generate new target with faster spawn rates
   const generateTarget = () => {
     if (!gameAreaRef.current || gameEnded) return;
 
     const rect = gameAreaRef.current.getBoundingClientRect();
     let size = 80;
     
-    // More aggressive size reduction
     if (difficulty === 'Medium') size = 55;
     else if (difficulty === 'Hard') size = 35;
 
@@ -92,11 +91,11 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
 
     setTargets([newTarget]);
 
-    // Much faster target spawning - more aggressive timing
+    // Faster target spawning based on difficulty
     let timeout;
-    if (difficulty === 'Hard') timeout = 800;      // Very fast
-    else if (difficulty === 'Medium') timeout = 1200; // Fast
-    else timeout = 1600;  // Still faster than before
+    if (difficulty === 'Hard') timeout = 600;      // Very fast
+    else if (difficulty === 'Medium') timeout = 900; // Fast
+    else timeout = 1200;  // Normal
 
     targetTimeoutRef.current = setTimeout(() => {
       setTargets([]);
@@ -111,6 +110,7 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
     setGameEnded(false);
     setStreak(0);
     setHitMessage('');
+    setNewRecord(false);
     generateTarget();
   };
 
@@ -141,7 +141,7 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
     setTimeout(() => setHitMessage(''), 1000);
 
     // Generate new target immediately
-    setTimeout(() => generateTarget(), 50); // Reduced delay for faster gameplay
+    setTimeout(() => generateTarget(), 50);
   };
 
   const endGame = () => {
@@ -152,21 +152,23 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
       clearTimeout(targetTimeoutRef.current);
     }
 
-    // Only save score if it's greater than 0
+    // Check if new personal best
+    if (score > highestScore) {
+      setHighestScore(score);
+      setNewRecord(true);
+      localStorage.setItem(`bestScore_${user.uid}`, score.toString());
+      
+      toast({
+        title: "🎉 NEW PERSONAL BEST! 🎉",
+        description: `Incredible! You scored ${score} points!`,
+      });
+    }
+
+    // Save to previous scores list
     if (score > 0) {
+      const previousScores = JSON.parse(localStorage.getItem(`scores_${user.uid}`) || '[]');
       const newScores = [...previousScores, score];
       localStorage.setItem(`scores_${user.uid}`, JSON.stringify(newScores));
-      setPreviousScores(newScores);
-
-      // Update best score
-      const currentBest = parseInt(localStorage.getItem(`bestScore_${user.uid}`) || '0');
-      if (score > currentBest) {
-        localStorage.setItem(`bestScore_${user.uid}`, score.toString());
-        toast({
-          title: "New Personal Best!",
-          description: `Amazing! You scored ${score} points!`,
-        });
-      }
     }
   };
 
@@ -178,10 +180,33 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
     setTargets([]);
     setStreak(0);
     setHitMessage('');
+    setNewRecord(false);
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-600 via-pink-600 to-blue-600 animate-gradient-x relative overflow-hidden">
+      {/* Floating Highest Score Board */}
+      {highestScore > 0 && (
+        <div className={`absolute top-20 left-1/2 transform -translate-x-1/2 z-20 ${newRecord ? 'animate-bounce' : 'animate-pulse'}`}>
+          <div className={`bg-gradient-to-r ${newRecord ? 'from-yellow-400 via-orange-500 to-red-500' : 'from-purple-500 to-pink-500'} rounded-full px-6 py-3 shadow-2xl border-4 border-white/30`}>
+            <div className="flex items-center gap-2 text-white">
+              {newRecord ? (
+                <Crown className="w-6 h-6 text-yellow-200 animate-spin" />
+              ) : (
+                <Trophy className="w-6 h-6 text-yellow-200" />
+              )}
+              <div className="text-center">
+                <div className="text-xs font-medium opacity-90">
+                  {newRecord ? '🔥 NEW RECORD! 🔥' : '👑 PERSONAL BEST'}
+                </div>
+                <div className="text-xl font-bold">{highestScore}</div>
+              </div>
+              <Star className="w-6 h-6 text-yellow-200 animate-pulse" />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="absolute top-4 left-4 z-10">
         <Button
@@ -220,6 +245,17 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
         </div>
       )}
 
+      {/* New Record Celebration */}
+      {newRecord && gameEnded && (
+        <div className="absolute inset-0 pointer-events-none z-15">
+          <div className="absolute top-32 left-20 text-6xl animate-bounce">🎉</div>
+          <div className="absolute top-40 right-32 text-6xl animate-bounce" style={{ animationDelay: '0.2s' }}>🔥</div>
+          <div className="absolute bottom-32 left-32 text-6xl animate-bounce" style={{ animationDelay: '0.4s' }}>⭐</div>
+          <div className="absolute bottom-20 right-20 text-6xl animate-bounce" style={{ animationDelay: '0.6s' }}>👑</div>
+          <div className="absolute top-60 left-1/2 text-6xl animate-bounce" style={{ animationDelay: '0.8s' }}>🚀</div>
+        </div>
+      )}
+
       {/* Game Area */}
       <div
         ref={gameAreaRef}
@@ -253,6 +289,11 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
                 <p className="text-white/80 mb-4">
                   Hit as many targets as you can in 30 seconds!
                 </p>
+                {highestScore > 0 && (
+                  <p className="text-yellow-300 font-bold mb-4">
+                    Beat your record of {highestScore} points! 🏆
+                  </p>
+                )}
                 <Button
                   onClick={startGame}
                   className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-bold text-lg px-8 py-3"
@@ -268,23 +309,35 @@ const Game: React.FC<GameProps> = ({ user, onBack, soundEnabled }) => {
           <div className="flex items-center justify-center h-full">
             <Card className="bg-white/10 backdrop-blur-lg border-white/20 text-center max-w-md">
               <CardHeader>
-                <CardTitle className="text-white text-3xl">🎉 Game Over!</CardTitle>
+                <CardTitle className={`text-white text-3xl ${newRecord ? 'animate-pulse' : ''}`}>
+                  {newRecord ? '🎉 NEW RECORD! 🎉' : '🎯 Game Over!'}
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="text-white">
-                  <div className="text-2xl font-bold text-yellow-300 mb-2">
-                    Your Final Score: {score}
+                  <div className={`text-3xl font-bold mb-4 ${newRecord ? 'text-yellow-300 animate-pulse' : 'text-yellow-300'}`}>
+                    Final Score: {score}
                   </div>
                   
-                  {previousScores.length > 1 && (
-                    <div className="mt-4">
-                      <h3 className="text-lg font-semibold mb-2">Your Previous Scores:</h3>
-                      <div className="text-sm space-y-1 max-h-32 overflow-y-auto">
-                        {previousScores.slice(0, -1).reverse().map((prevScore, index) => (
-                          <div key={index} className="text-white/70">
-                            Try {previousScores.length - 1 - index}: {prevScore} pts
-                          </div>
-                        ))}
+                  {newRecord && (
+                    <div className="mb-4 p-4 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-lg border-2 border-yellow-400/50">
+                      <div className="text-2xl mb-2">🔥 AMAZING! 🔥</div>
+                      <div className="text-lg text-yellow-200">
+                        You crushed your previous best!
+                      </div>
+                      <div className="text-sm text-white/80 mt-2">
+                        Keep pushing your limits! 💪
+                      </div>
+                    </div>
+                  )}
+
+                  {!newRecord && highestScore > 0 && score < highestScore && (
+                    <div className="mb-4 p-3 bg-blue-500/20 rounded-lg">
+                      <div className="text-lg text-blue-200">
+                        So close! Your best is still {highestScore} 🎯
+                      </div>
+                      <div className="text-sm text-white/70">
+                        Only {highestScore - score} points away from your record!
                       </div>
                     </div>
                   )}
